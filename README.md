@@ -20,13 +20,25 @@ CREATE DATABASE usersdb;
 
 ### 2. Настройка подключения
 
-Отредактируйте файл `src/main/resources/hibernate.cfg.xml` и укажите ваши параметры подключения:
+**Рекомендуемый способ (безопасный):** Используйте переменные окружения или системные свойства Java.
+
+Установите переменные окружения:
+
+```bash
+export DB_URL=jdbc:postgresql://localhost:5432/usersdb
+export DB_USERNAME=postgres
+export DB_PASSWORD=your_password
+```
+
+**Альтернативный способ:** Отредактируйте файл `src/main/resources/hibernate.cfg.xml` и укажите ваши параметры подключения (не рекомендуется для production):
 
 ```xml
 <property name="hibernate.connection.url">jdbc:postgresql://localhost:5432/usersdb</property>
 <property name="hibernate.connection.username">postgres</property>
 <property name="hibernate.connection.password">postgres</property>
 ```
+
+**Подробнее:** См. файл `ENV_SETUP.md` для детальных инструкций по настройке переменных окружения.
 
 ### 3. Сборка проекта
 

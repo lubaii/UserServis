@@ -6,10 +6,24 @@
 <hibernate-configuration>
     <session-factory>
         <!-- Database connection settings -->
+        <!-- 
+            Для безопасности рекомендуется использовать переменные окружения.
+            Установите переменные окружения перед запуском:
+            export DB_URL=jdbc:postgresql://localhost:5432/usersdb
+            export DB_USERNAME=postgres
+            export DB_PASSWORD=your_password
+            
+            Или используйте системные свойства Java при запуске:
+            -Ddb.url=jdbc:postgresql://localhost:5432/usersdb
+            -Ddb.username=postgres
+            -Ddb.password=your_password
+        -->
         <property name="hibernate.connection.driver_class">org.postgresql.Driver</property>
-        <property name="hibernate.connection.url">jdbc:postgresql://localhost:5432/usersdb</property>
-        <property name="hibernate.connection.username">postgres</property>
-        <property name="hibernate.connection.password">postgre</property>
+        <!-- Используются системные свойства db.url, db.username, db.password, если заданы -->
+        <!-- Иначе используются значения по умолчанию из кода HibernateUtil -->
+        <property name="hibernate.connection.url">${db.url:jdbc:postgresql://localhost:5432/usersdb}</property>
+        <property name="hibernate.connection.username">${db.username:postgres}</property>
+        <property name="hibernate.connection.password">${db.password:postgre}</property>
 
         <!-- JDBC connection pool settings -->
         <property name="hibernate.connection.pool_size">5</property>

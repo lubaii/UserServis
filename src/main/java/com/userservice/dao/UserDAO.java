@@ -19,6 +19,10 @@ public class UserDAO {
         this.sessionFactory = HibernateUtil.getSessionFactory();
     }
 
+    public UserDAO(SessionFactory sessionFactory) {
+        this.sessionFactory = sessionFactory;
+    }
+
     public Long create(User user) {
         Session session = sessionFactory.openSession();
         Transaction transaction = null;

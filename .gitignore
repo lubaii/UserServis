@@ -5,3 +5,9 @@ target/
 logs/
 .DS_Store
 
+# Environment variables with sensitive data
+.env
+*.env.local
+SETUP_ENV.sh
+*.env.sh
+
