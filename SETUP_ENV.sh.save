@@ -1,0 +1,13 @@
+#!/bin/bash
+# Скрипт для установки переменных окружения
+# Использование: source SETUP_ENV.sh
+
+export DB_URL=jdbc:postgresql://localhost:5432/usersdb
+export DB_USERNAME=postgres
+export DB_PASSWORD=1111
+
+echo "Переменные окружения установлены:"
+echo "DB_URL=$DB_URL"
+echo "DB_USERNAME=$DB_USERNAME"
+echo "DB_PASSWORD=***"
+

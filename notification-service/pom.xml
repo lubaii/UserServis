@@ -1,17 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
          http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.userservice</groupId>
-    <artifactId>user-service</artifactId>
+    <groupId>com.notificationservice</groupId>
+    <artifactId>notification-service</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
-    <name>User Service</name>
-    <description>Console application for User CRUD operations using Spring Data JPA and PostgreSQL</description>
+    <name>Notification Service</name>
+    <description>Notification Service with Spring Boot, Kafka and Mail</description>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
@@ -36,69 +37,29 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- Spring Boot Starter Web (для REST API и веб-функциональности) -->
+        <!-- Web (REST API, встроенный Tomcat) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
-        <!-- Spring Boot Starter Data JPA -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
-        </dependency>
-
-        <!-- Spring Boot Starter Validation (для валидации данных) -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-validation</artifactId>
-        </dependency>
-
-        <!-- Spring Boot Starter Actuator (для мониторинга и метрик) -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>
-
-        <!-- Spring Boot Starter Kafka (для отправки сообщений в Kafka) -->
+        <!-- Kafka (консьюмер) -->
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
         </dependency>
 
-        <!-- PostgreSQL Driver -->
+        <!-- Mail (отправка писем) -->
         <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
 
-        <!-- Spring Boot Starter Test (includes JUnit, Mockito, Spring Test) -->
+        <!-- Тесты Spring Boot + JUnit -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <version>${spring-boot.version}</version>
-            <scope>test</scope>
-        </dependency>
-
-        <!-- Testcontainers (optional, for future use) -->
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>testcontainers</artifactId>
-            <version>${testcontainers.version}</version>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <version>${testcontainers.version}</version>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>postgresql</artifactId>
-            <version>${testcontainers.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -123,13 +84,12 @@
                 <version>3.0.0</version>
             </plugin>
 
-            <!-- Spring Boot Maven Plugin -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <version>${spring-boot.version}</version>
                 <configuration>
-                    <mainClass>com.userservice.Main</mainClass>
+                    <mainClass>com.notificationservice.NotificationServiceApplication</mainClass>
                 </configuration>
             </plugin>
         </plugins>

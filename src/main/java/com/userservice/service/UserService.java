@@ -16,10 +16,12 @@ import com.userservice.repository.UserRepository;
 public class UserService {
     private static final Logger logger = LogManager.getLogger(UserService.class);
     private final UserRepository userRepository;
+    private final UserEventProducer userEventProducer;
 
     @Autowired
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, UserEventProducer userEventProducer) {
         this.userRepository = userRepository;
+        this.userEventProducer = userEventProducer;
     }
 
     public User createUser(String name, String email, Integer age) {
@@ -35,6 +37,14 @@ public class UserService {
         
         User user = new User(name, email, age);
         user = userRepository.save(user);
+        
+        // Отправка события создания пользователя в Kafka
+        try {
+            userEventProducer.sendUserCreatedEvent(email);
+        } catch (Exception e) {
+            logger.error("Failed to send user created event to Kafka", e);
+            // Не прерываем выполнение, если отправка события не удалась
+        }
         
         logger.info("User created successfully with ID: {}", user.getId());
         return user;
@@ -102,11 +112,22 @@ public class UserService {
             throw new IllegalArgumentException("User ID must be positive");
         }
         
-        if (!userRepository.existsById(id)) {
-            throw new IllegalArgumentException("User with ID " + id + " not found");
-        }
+        // Получаем email пользователя перед удалением для отправки события
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("User with ID " + id + " not found"));
+        
+        String email = user.getEmail();
         
         userRepository.deleteById(id);
+        
+        // Отправка события удаления пользователя в Kafka
+        try {
+            userEventProducer.sendUserDeletedEvent(email);
+        } catch (Exception e) {
+            logger.error("Failed to send user deleted event to Kafka", e);
+            // Не прерываем выполнение, если отправка события не удалась
+        }
+        
         logger.info("User with ID {} deleted successfully", id);
     }
 
