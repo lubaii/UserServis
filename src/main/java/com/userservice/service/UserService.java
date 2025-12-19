@@ -4,16 +4,24 @@ import java.util.List;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import com.userservice.dao.UserDAO;
 import com.userservice.entity.User;
+import com.userservice.repository.UserRepository;
 
+@Service
+@Transactional
 public class UserService {
     private static final Logger logger = LogManager.getLogger(UserService.class);
-    private final UserDAO userDAO;
+    private final UserRepository userRepository;
+    private final UserEventProducer userEventProducer;
 
-    public UserService(UserDAO userDAO) {
-        this.userDAO = userDAO;
+    @Autowired
+    public UserService(UserRepository userRepository, UserEventProducer userEventProducer) {
+        this.userRepository = userRepository;
+        this.userEventProducer = userEventProducer;
     }
 
     public User createUser(String name, String email, Integer age) {
@@ -21,14 +29,28 @@ public class UserService {
         
         validateUserData(name, email, age);
         
-        User user = new User(name, email, age);
-        Long id = userDAO.create(user);
-        user.setId(id);
+        // Проверка на дубликат email
+        if (userRepository.existsByEmail(email)) {
+            logger.warn("User with email {} already exists", email);
+            throw new IllegalArgumentException("User with this email already exists");
+        }
         
-        logger.info("User created successfully with ID: {}", id);
+        User user = new User(name, email, age);
+        user = userRepository.save(user);
+        
+        // Отправка события создания пользователя в Kafka
+        try {
+            userEventProducer.sendUserCreatedEvent(email);
+        } catch (Exception e) {
+            logger.error("Failed to send user created event to Kafka", e);
+            // Не прерываем выполнение, если отправка события не удалась
+        }
+        
+        logger.info("User created successfully with ID: {}", user.getId());
         return user;
     }
 
+    @Transactional(readOnly = true)
     public User getUserById(Long id) {
         logger.debug("Getting user by ID: {}", id);
         
@@ -36,18 +58,17 @@ public class UserService {
             throw new IllegalArgumentException("User ID must be positive");
         }
         
-        User user = userDAO.read(id);
-        if (user == null) {
-            logger.warn("User with ID {} not found", id);
-            throw new IllegalArgumentException("User with ID " + id + " not found");
-        }
-        
-        return user;
+        return userRepository.findById(id)
+                .orElseThrow(() -> {
+                    logger.warn("User with ID {} not found", id);
+                    return new IllegalArgumentException("User with ID " + id + " not found");
+                });
     }
 
+    @Transactional(readOnly = true)
     public List<User> getAllUsers() {
         logger.debug("Getting all users");
-        return userDAO.readAll();
+        return userRepository.findAll();
     }
 
     public User updateUser(Long id, String name, String email, Integer age) {
@@ -57,10 +78,8 @@ public class UserService {
             throw new IllegalArgumentException("User ID must be positive");
         }
         
-        User user = userDAO.read(id);
-        if (user == null) {
-            throw new IllegalArgumentException("User with ID " + id + " not found");
-        }
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("User with ID " + id + " not found"));
         
         if (name != null && !name.trim().isEmpty()) {
             validateName(name);
@@ -69,6 +88,10 @@ public class UserService {
         
         if (email != null && !email.trim().isEmpty()) {
             validateEmail(email);
+            // Проверка на дубликат email (кроме текущего пользователя)
+            if (!email.equals(user.getEmail()) && userRepository.existsByEmail(email)) {
+                throw new IllegalArgumentException("User with this email already exists");
+            }
             user.setEmail(email.trim());
         }
         
@@ -77,7 +100,7 @@ public class UserService {
             user.setAge(age);
         }
         
-        userDAO.update(user);
+        user = userRepository.save(user);
         logger.info("User with ID {} updated successfully", id);
         return user;
     }
@@ -89,7 +112,22 @@ public class UserService {
             throw new IllegalArgumentException("User ID must be positive");
         }
         
-        userDAO.delete(id);
+        // Получаем email пользователя перед удалением для отправки события
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("User with ID " + id + " not found"));
+        
+        String email = user.getEmail();
+        
+        userRepository.deleteById(id);
+        
+        // Отправка события удаления пользователя в Kafka
+        try {
+            userEventProducer.sendUserDeletedEvent(email);
+        } catch (Exception e) {
+            logger.error("Failed to send user deleted event to Kafka", e);
+            // Не прерываем выполнение, если отправка события не удалась
+        }
+        
         logger.info("User with ID {} deleted successfully", id);
     }
 
