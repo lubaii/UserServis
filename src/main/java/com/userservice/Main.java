@@ -5,88 +5,100 @@ import java.util.Scanner;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
 
-import com.userservice.dao.UserDAO;
 import com.userservice.entity.User;
-import com.userservice.util.HibernateUtil;
+import com.userservice.service.UserService;
 
+@SpringBootApplication
 public class Main {
     private static final Logger logger = LogManager.getLogger(Main.class);
-    private static final Scanner scanner = new Scanner(System.in);
-    private static UserDAO userDAO;
 
     public static void main(String[] args) {
         logger.info("Starting User Service application");
         
-        try {
-            // Проверка подключения к БД
-            HibernateUtil.getSessionFactory();
-            logger.info("Database connection established");
+        // Настройка SpringApplication для поддержки консольного режима
+        SpringApplication app = new SpringApplication(Main.class);
+        
+        // Если нужно отключить веб-сервер для чисто консольного режима,
+        // раскомментируйте следующую строку:
+        // app.setWebApplicationType(WebApplicationType.NONE);
+        
+        app.run(args);
+    }
+
+    @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(prefix = "app", name = "console", havingValue = "true", matchIfMissing = true)
+    public CommandLineRunner run(UserService userService) {
+        return args -> {
+            Scanner scanner = new Scanner(System.in);
             
-            // Инициализация DAO только после успешного подключения
-            userDAO = new UserDAO();
-            
-            showMenu();
-            
-            boolean running = true;
-            while (running) {
-                System.out.print("\nВыберите операцию (1-6): ");
-                String choice = scanner.nextLine().trim();
+            try {
+                logger.info("Database connection established");
+                showMenu();
                 
-                try {
-                    switch (choice) {
-                        case "1":
-                            createUser();
-                            break;
-                        case "2":
-                            readUser();
-                            break;
-                        case "3":
-                            readAllUsers();
-                            break;
-                        case "4":
-                            updateUser();
-                            break;
-                        case "5":
-                            deleteUser();
-                            break;
-                        case "6":
-                            running = false;
-                            System.out.println("Выход из приложения...");
-                            break;
-                        default:
-                            System.out.println("Неверный выбор. Пожалуйста, выберите от 1 до 6.");
+                boolean running = true;
+                while (running) {
+                    System.out.print("\nВыберите операцию (1-6): ");
+                    String choice = scanner.nextLine().trim();
+                    
+                    try {
+                        switch (choice) {
+                            case "1":
+                                createUser(userService, scanner);
+                                break;
+                            case "2":
+                                readUser(userService, scanner);
+                                break;
+                            case "3":
+                                readAllUsers(userService);
+                                break;
+                            case "4":
+                                updateUser(userService, scanner);
+                                break;
+                            case "5":
+                                deleteUser(userService, scanner);
+                                break;
+                            case "6":
+                                running = false;
+                                System.out.println("Выход из приложения...");
+                                break;
+                            default:
+                                System.out.println("Неверный выбор. Пожалуйста, выберите от 1 до 6.");
+                        }
+                    } catch (Exception e) {
+                        System.out.println("Ошибка: " + e.getMessage());
+                        logger.error("Error during operation", e);
                     }
-                } catch (Exception e) {
-                    System.out.println("Ошибка: " + e.getMessage());
-                    logger.error("Error during operation", e);
                 }
-            }
-        } catch (Exception e) {
-            logger.error("Fatal error in application", e);
-            System.err.println("\n=== КРИТИЧЕСКАЯ ОШИБКА ===");
-            System.err.println(e.getMessage());
-            
-            Throwable cause = e.getCause();
-            if (cause != null && cause.getMessage() != null) {
-                if (cause.getMessage().contains("password authentication failed")) {
-                    System.err.println("\nОшибка аутентификации PostgreSQL!");
-                    System.err.println("Проверьте правильность пароля в файле hibernate.cfg.xml");
-                } else if (cause.getMessage().contains("Connection refused") || cause.getMessage().contains("could not connect")) {
-                    System.err.println("\nНе удалось подключиться к PostgreSQL!");
-                    System.err.println("Убедитесь, что PostgreSQL запущен и доступен на localhost:5432");
-                } else if (cause.getMessage().contains("database") && cause.getMessage().contains("does not exist")) {
-                    System.err.println("\nБаза данных не существует!");
-                    System.err.println("Создайте базу данных: CREATE DATABASE usersdb;");
+            } catch (Exception e) {
+                logger.error("Fatal error in application", e);
+                System.err.println("\n=== КРИТИЧЕСКАЯ ОШИБКА ===");
+                System.err.println(e.getMessage());
+                
+                Throwable cause = e.getCause();
+                if (cause != null && cause.getMessage() != null) {
+                    if (cause.getMessage().contains("password authentication failed")) {
+                        System.err.println("\nОшибка аутентификации PostgreSQL!");
+                        System.err.println("Проверьте правильность пароля в application.properties или переменных окружения");
+                    } else if (cause.getMessage().contains("Connection refused") || cause.getMessage().contains("could not connect")) {
+                        System.err.println("\nНе удалось подключиться к PostgreSQL!");
+                        System.err.println("Убедитесь, что PostgreSQL запущен и доступен на localhost:5432");
+                    } else if (cause.getMessage().contains("database") && cause.getMessage().contains("does not exist")) {
+                        System.err.println("\nБаза данных не существует!");
+                        System.err.println("Создайте базу данных: CREATE DATABASE usersdb;");
+                    }
                 }
+                
+                System.err.println("\nПроверьте настройки в файле: src/main/resources/application.properties");
+            } finally {
+                scanner.close();
+                logger.info("Application shutdown");
             }
-            
-            System.err.println("\nПроверьте настройки в файле: src/main/resources/hibernate.cfg.xml");
-        } finally {
-            scanner.close();
-            HibernateUtil.shutdown();
-            logger.info("Application shutdown");
-        }
+        };
     }
 
     private static void showMenu() {
@@ -99,7 +111,7 @@ public class Main {
         System.out.println("6. Выход");
     }
 
-    private static void createUser() {
+    private static void createUser(UserService userService, Scanner scanner) {
         System.out.println("\n--- Создание нового пользователя ---");
         
         System.out.print("Введите имя: ");
@@ -130,16 +142,15 @@ public class Main {
             return;
         }
         
-        User user = new User(name, email, age);
         try {
-            Long id = userDAO.create(user);
-            System.out.println("Пользователь успешно создан с ID: " + id);
-        } catch (RuntimeException e) {
+            User user = userService.createUser(name, email, age);
+            System.out.println("Пользователь успешно создан с ID: " + user.getId());
+        } catch (IllegalArgumentException e) {
             System.out.println("Ошибка при создании пользователя: " + e.getMessage());
         }
     }
 
-    private static void readUser() {
+    private static void readUser(UserService userService, Scanner scanner) {
         System.out.println("\n--- Поиск пользователя по ID ---");
         
         System.out.print("Введите ID пользователя: ");
@@ -152,23 +163,23 @@ public class Main {
             return;
         }
         
-        User user = userDAO.read(id);
-        if (user != null) {
+        try {
+            User user = userService.getUserById(id);
             System.out.println("\nНайден пользователь:");
             System.out.println("ID: " + user.getId());
             System.out.println("Имя: " + user.getName());
             System.out.println("Email: " + user.getEmail());
             System.out.println("Возраст: " + user.getAge());
             System.out.println("Дата создания: " + user.getCreatedAt());
-        } else {
+        } catch (IllegalArgumentException e) {
             System.out.println("Пользователь с ID " + id + " не найден.");
         }
     }
 
-    private static void readAllUsers() {
+    private static void readAllUsers(UserService userService) {
         System.out.println("\n--- Список всех пользователей ---");
         
-        List<User> users = userDAO.readAll();
+        List<User> users = userService.getAllUsers();
         if (users.isEmpty()) {
             System.out.println("Пользователи не найдены.");
         } else {
@@ -184,7 +195,7 @@ public class Main {
         }
     }
 
-    private static void updateUser() {
+    private static void updateUser(UserService userService, Scanner scanner) {
         System.out.println("\n--- Обновление пользователя ---");
         
         System.out.print("Введите ID пользователя для обновления: ");
@@ -197,8 +208,10 @@ public class Main {
             return;
         }
         
-        User user = userDAO.read(id);
-        if (user == null) {
+        User user;
+        try {
+            user = userService.getUserById(id);
+        } catch (IllegalArgumentException e) {
             System.out.println("Пользователь с ID " + id + " не найден.");
             return;
         }
@@ -210,26 +223,22 @@ public class Main {
         
         System.out.print("\nВведите новое имя (или нажмите Enter для сохранения текущего): ");
         String name = scanner.nextLine().trim();
-        if (!name.isEmpty()) {
-            user.setName(name);
-        }
+        String newName = name.isEmpty() ? null : name;
         
         System.out.print("Введите новый email (или нажмите Enter для сохранения текущего): ");
         String email = scanner.nextLine().trim();
-        if (!email.isEmpty()) {
-            user.setEmail(email);
-        }
+        String newEmail = email.isEmpty() ? null : email;
         
         System.out.print("Введите новый возраст (или нажмите Enter для сохранения текущего): ");
         String ageStr = scanner.nextLine().trim();
+        Integer newAge = null;
         if (!ageStr.isEmpty()) {
             try {
-                Integer age = Integer.parseInt(ageStr);
-                if (age < 0 || age > 150) {
+                newAge = Integer.parseInt(ageStr);
+                if (newAge < 0 || newAge > 150) {
                     System.out.println("Возраст должен быть от 0 до 150!");
                     return;
                 }
-                user.setAge(age);
             } catch (NumberFormatException e) {
                 System.out.println("Неверный формат возраста!");
                 return;
@@ -237,14 +246,14 @@ public class Main {
         }
         
         try {
-            userDAO.update(user);
+            userService.updateUser(id, newName, newEmail, newAge);
             System.out.println("Пользователь успешно обновлен!");
-        } catch (RuntimeException e) {
+        } catch (IllegalArgumentException e) {
             System.out.println("Ошибка при обновлении пользователя: " + e.getMessage());
         }
     }
 
-    private static void deleteUser() {
+    private static void deleteUser(UserService userService, Scanner scanner) {
         System.out.println("\n--- Удаление пользователя ---");
         
         System.out.print("Введите ID пользователя для удаления: ");
@@ -257,8 +266,10 @@ public class Main {
             return;
         }
         
-        User user = userDAO.read(id);
-        if (user == null) {
+        User user;
+        try {
+            user = userService.getUserById(id);
+        } catch (IllegalArgumentException e) {
             System.out.println("Пользователь с ID " + id + " не найден.");
             return;
         }
@@ -272,9 +283,9 @@ public class Main {
         
         if ("yes".equals(confirmation) || "y".equals(confirmation)) {
             try {
-                userDAO.delete(id);
+                userService.deleteUser(id);
                 System.out.println("Пользователь успешно удален!");
-            } catch (RuntimeException e) {
+            } catch (IllegalArgumentException e) {
                 System.out.println("Ошибка при удалении пользователя: " + e.getMessage());
             }
         } else {

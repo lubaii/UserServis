@@ -1,7 +1,7 @@
 package com.userservice.service;
 
-import com.userservice.dao.UserDAO;
 import com.userservice.entity.User;
+import com.userservice.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,10 +14,12 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,7 +27,7 @@ import static org.mockito.Mockito.*;
 class UserServiceTest {
 
     @Mock
-    private UserDAO userDAO;
+    private UserRepository userRepository;
 
     @InjectMocks
     private UserService userService;
@@ -43,10 +45,11 @@ class UserServiceTest {
     @DisplayName("Should create user successfully with valid data")
     void testCreateUserSuccess() {
         // Given
-        when(userDAO.create(any(User.class))).thenAnswer(invocation -> {
+        when(userRepository.existsByEmail(anyString())).thenReturn(false);
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
             User user = invocation.getArgument(0);
             user.setId(1L);
-            return 1L;
+            return user;
         });
 
         // When
@@ -58,7 +61,8 @@ class UserServiceTest {
         assertEquals("John Doe", created.getName());
         assertEquals("john@example.com", created.getEmail());
         assertEquals(30, created.getAge());
-        verify(userDAO, times(1)).create(any(User.class));
+        verify(userRepository, times(1)).existsByEmail("john@example.com");
+        verify(userRepository, times(1)).save(any(User.class));
     }
 
     @Test
@@ -70,7 +74,7 @@ class UserServiceTest {
         });
 
         assertEquals("Name cannot be empty", exception.getMessage());
-        verify(userDAO, never()).create(any(User.class));
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
@@ -82,7 +86,7 @@ class UserServiceTest {
         });
 
         assertEquals("Name cannot be empty", exception.getMessage());
-        verify(userDAO, never()).create(any(User.class));
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
@@ -94,7 +98,7 @@ class UserServiceTest {
         });
 
         assertEquals("Invalid email format", exception.getMessage());
-        verify(userDAO, never()).create(any(User.class));
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
@@ -106,7 +110,23 @@ class UserServiceTest {
         });
 
         assertEquals("Email cannot be empty", exception.getMessage());
-        verify(userDAO, never()).create(any(User.class));
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("Should throw exception when creating user with duplicate email")
+    void testCreateUserDuplicateEmail() {
+        // Given
+        when(userRepository.existsByEmail("john@example.com")).thenReturn(true);
+
+        // When & Then
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            userService.createUser("John Doe", "john@example.com", 30);
+        });
+
+        assertEquals("User with this email already exists", exception.getMessage());
+        verify(userRepository, times(1)).existsByEmail("john@example.com");
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
@@ -118,7 +138,7 @@ class UserServiceTest {
         });
 
         assertEquals("Age must be between 0 and 150", exception.getMessage());
-        verify(userDAO, never()).create(any(User.class));
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
@@ -130,7 +150,7 @@ class UserServiceTest {
         });
 
         assertEquals("Age must be between 0 and 150", exception.getMessage());
-        verify(userDAO, never()).create(any(User.class));
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
@@ -142,14 +162,14 @@ class UserServiceTest {
         });
 
         assertEquals("Age cannot be null", exception.getMessage());
-        verify(userDAO, never()).create(any(User.class));
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
     @DisplayName("Should get user by ID successfully")
     void testGetUserByIdSuccess() {
         // Given
-        when(userDAO.read(1L)).thenReturn(testUser);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
 
         // When
         User found = userService.getUserById(1L);
@@ -158,7 +178,7 @@ class UserServiceTest {
         assertNotNull(found);
         assertEquals(1L, found.getId());
         assertEquals("John Doe", found.getName());
-        verify(userDAO, times(1)).read(1L);
+        verify(userRepository, times(1)).findById(1L);
     }
 
     @Test
@@ -170,7 +190,7 @@ class UserServiceTest {
         });
 
         assertEquals("User ID must be positive", exception.getMessage());
-        verify(userDAO, never()).read(anyLong());
+        verify(userRepository, never()).findById(anyLong());
     }
 
     @Test
@@ -182,14 +202,14 @@ class UserServiceTest {
         });
 
         assertEquals("User ID must be positive", exception.getMessage());
-        verify(userDAO, never()).read(anyLong());
+        verify(userRepository, never()).findById(anyLong());
     }
 
     @Test
     @DisplayName("Should throw exception when user not found")
     void testGetUserByIdNotFound() {
         // Given
-        when(userDAO.read(999L)).thenReturn(null);
+        when(userRepository.findById(999L)).thenReturn(Optional.empty());
 
         // When & Then
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
@@ -197,7 +217,7 @@ class UserServiceTest {
         });
 
         assertEquals("User with ID 999 not found", exception.getMessage());
-        verify(userDAO, times(1)).read(999L);
+        verify(userRepository, times(1)).findById(999L);
     }
 
     @Test
@@ -210,7 +230,7 @@ class UserServiceTest {
         user2.setId(2L);
         List<User> users = Arrays.asList(user1, user2);
         
-        when(userDAO.readAll()).thenReturn(users);
+        when(userRepository.findAll()).thenReturn(users);
 
         // When
         List<User> result = userService.getAllUsers();
@@ -218,14 +238,14 @@ class UserServiceTest {
         // Then
         assertNotNull(result);
         assertEquals(2, result.size());
-        verify(userDAO, times(1)).readAll();
+        verify(userRepository, times(1)).findAll();
     }
 
     @Test
     @DisplayName("Should return empty list when no users exist")
     void testGetAllUsersEmpty() {
         // Given
-        when(userDAO.readAll()).thenReturn(Collections.emptyList());
+        when(userRepository.findAll()).thenReturn(Collections.emptyList());
 
         // When
         List<User> result = userService.getAllUsers();
@@ -233,15 +253,16 @@ class UserServiceTest {
         // Then
         assertNotNull(result);
         assertTrue(result.isEmpty());
-        verify(userDAO, times(1)).readAll();
+        verify(userRepository, times(1)).findAll();
     }
 
     @Test
     @DisplayName("Should update user successfully with all fields")
     void testUpdateUserSuccess() {
         // Given
-        when(userDAO.read(1L)).thenReturn(testUser);
-        doNothing().when(userDAO).update(any(User.class));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(userRepository.existsByEmail("jane@example.com")).thenReturn(false);
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // When
         User updated = userService.updateUser(1L, "Jane Smith", "jane@example.com", 35);
@@ -251,16 +272,17 @@ class UserServiceTest {
         assertEquals("Jane Smith", updated.getName());
         assertEquals("jane@example.com", updated.getEmail());
         assertEquals(35, updated.getAge());
-        verify(userDAO, times(1)).read(1L);
-        verify(userDAO, times(1)).update(any(User.class));
+        verify(userRepository, times(1)).findById(1L);
+        verify(userRepository, times(1)).existsByEmail("jane@example.com");
+        verify(userRepository, times(1)).save(any(User.class));
     }
 
     @Test
     @DisplayName("Should update user with partial data")
     void testUpdateUserPartial() {
         // Given
-        when(userDAO.read(1L)).thenReturn(testUser);
-        doNothing().when(userDAO).update(any(User.class));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // When - обновляем только имя
         User updated = userService.updateUser(1L, "Jane Smith", null, null);
@@ -270,15 +292,16 @@ class UserServiceTest {
         assertEquals("Jane Smith", updated.getName());
         assertEquals("john@example.com", updated.getEmail()); // осталось прежним
         assertEquals(30, updated.getAge()); // осталось прежним
-        verify(userDAO, times(1)).read(1L);
-        verify(userDAO, times(1)).update(any(User.class));
+        verify(userRepository, times(1)).findById(1L);
+        verify(userRepository, never()).existsByEmail(anyString());
+        verify(userRepository, times(1)).save(any(User.class));
     }
 
     @Test
     @DisplayName("Should throw exception when updating non-existent user")
     void testUpdateUserNotFound() {
         // Given
-        when(userDAO.read(999L)).thenReturn(null);
+        when(userRepository.findById(999L)).thenReturn(Optional.empty());
 
         // When & Then
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
@@ -286,15 +309,33 @@ class UserServiceTest {
         });
 
         assertEquals("User with ID 999 not found", exception.getMessage());
-        verify(userDAO, times(1)).read(999L);
-        verify(userDAO, never()).update(any(User.class));
+        verify(userRepository, times(1)).findById(999L);
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("Should throw exception when updating with duplicate email")
+    void testUpdateUserDuplicateEmail() {
+        // Given
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(userRepository.existsByEmail("existing@example.com")).thenReturn(true);
+
+        // When & Then
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            userService.updateUser(1L, null, "existing@example.com", null);
+        });
+
+        assertEquals("User with this email already exists", exception.getMessage());
+        verify(userRepository, times(1)).findById(1L);
+        verify(userRepository, times(1)).existsByEmail("existing@example.com");
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
     @DisplayName("Should throw exception when updating with invalid email")
     void testUpdateUserInvalidEmail() {
         // Given
-        when(userDAO.read(1L)).thenReturn(testUser);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
 
         // When & Then
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
@@ -302,21 +343,23 @@ class UserServiceTest {
         });
 
         assertEquals("Invalid email format", exception.getMessage());
-        verify(userDAO, times(1)).read(1L);
-        verify(userDAO, never()).update(any(User.class));
+        verify(userRepository, times(1)).findById(1L);
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
     @DisplayName("Should delete user successfully")
     void testDeleteUserSuccess() {
         // Given
-        doNothing().when(userDAO).delete(1L);
+        when(userRepository.existsById(1L)).thenReturn(true);
+        doNothing().when(userRepository).deleteById(1L);
 
         // When
         userService.deleteUser(1L);
 
         // Then
-        verify(userDAO, times(1)).delete(1L);
+        verify(userRepository, times(1)).existsById(1L);
+        verify(userRepository, times(1)).deleteById(1L);
     }
 
     @Test
@@ -328,7 +371,7 @@ class UserServiceTest {
         });
 
         assertEquals("User ID must be positive", exception.getMessage());
-        verify(userDAO, never()).delete(anyLong());
+        verify(userRepository, never()).deleteById(anyLong());
     }
 
     @Test
@@ -340,7 +383,23 @@ class UserServiceTest {
         });
 
         assertEquals("User ID must be positive", exception.getMessage());
-        verify(userDAO, never()).delete(anyLong());
+        verify(userRepository, never()).deleteById(anyLong());
+    }
+
+    @Test
+    @DisplayName("Should throw exception when deleting non-existent user")
+    void testDeleteUserNotFound() {
+        // Given
+        when(userRepository.existsById(999L)).thenReturn(false);
+
+        // When & Then
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            userService.deleteUser(999L);
+        });
+
+        assertEquals("User with ID 999 not found", exception.getMessage());
+        verify(userRepository, times(1)).existsById(999L);
+        verify(userRepository, never()).deleteById(anyLong());
     }
 
     @Test
@@ -355,7 +414,7 @@ class UserServiceTest {
         });
 
         assertEquals("Name cannot exceed 100 characters", exception.getMessage());
-        verify(userDAO, never()).create(any(User.class));
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
@@ -370,7 +429,7 @@ class UserServiceTest {
         });
 
         assertEquals("Email cannot exceed 100 characters", exception.getMessage());
-        verify(userDAO, never()).create(any(User.class));
+        verify(userRepository, never()).save(any(User.class));
     }
 }
 
